@@ -9,6 +9,7 @@ public:
 	vector<int> endpoints;
 	vector<int> agent_home_locations;
 
+    // 读取地图文件
     bool load_map(string fname);
     void preprocessing(bool consider_rotation); // compute heuristics
 private:

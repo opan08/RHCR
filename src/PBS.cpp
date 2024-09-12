@@ -39,9 +39,10 @@ void PBS::clear()
 
 // takes the paths_found_initially and UPDATE all (constrained) paths found for agents from curr to start
 // also, do the same for ll_min_f_vals and paths_costs (since its already "on the way").
+// 从当前节点curr开始，往父节点搜索，更新各个父节点的路径
 void PBS::update_paths(PBSNode* curr)
 {
-    vector<bool> updated(num_of_agents, false);  // initialized for false
+    vector<bool> updated(num_of_agents, false);  // initialized for false 初始化为没有update
 	while (curr != nullptr)
 	{
         for (auto p = curr->paths.begin(); p != curr->paths.end(); ++p)
@@ -85,7 +86,7 @@ void PBS::copy_conflicts(const list<Conflict>& conflicts, list<Conflict>& copy, 
     runtime_copy_conflicts += (double)(std::clock() - t) / CLOCKS_PER_SEC;
 }
 
-
+// 寻找冲突的时候会考虑window(planning_window)的大小只会考虑前window个时间步的冲突
 void PBS::find_conflicts(list<Conflict>& conflicts, int a1, int a2)
 {
     clock_t t = clock();
@@ -165,6 +166,7 @@ void PBS::find_conflicts(list<Conflict>& conflicts, int a1, int a2)
 	runtime_detect_conflicts += (double)(std::clock() - t) / CLOCKS_PER_SEC;
 }
 
+// 检测是否偶冲突，遍历两两agent之间是否有冲突
 void PBS::find_conflicts(list<Conflict>& conflicts)
 {
     for (int a1 = 0; a1 < num_of_agents; a1++)
@@ -176,6 +178,7 @@ void PBS::find_conflicts(list<Conflict>& conflicts)
     }
 }
 
+// 寻找与agent相关的冲突，保存到new_conflicts中
 void PBS::find_conflicts(list<Conflict>& new_conflicts, int new_agent)
 {
     for (int a2 = 0; a2 < num_of_agents; a2++)
@@ -197,6 +200,7 @@ void PBS::find_conflicts(const list<Conflict>& old_conflicts, list<Conflict>& ne
     find_conflicts(new_conflicts, new_agent);
 }
 
+// 从conflicts中，删除与agent相关的冲突
 void PBS::remove_conflicts(list<Conflict>& conflicts, int excluded_agent)
 {
     clock_t t = clock();
@@ -214,6 +218,7 @@ void PBS::remove_conflicts(list<Conflict>& conflicts, int excluded_agent)
     runtime_copy_conflicts += (double)(std::clock() - t) / CLOCKS_PER_SEC;
 }
 
+// 选择时间最早的conflict，保存到node.conflict中
 void PBS::choose_conflict(PBSNode &node)
 {
     clock_t t = clock();
@@ -245,7 +250,8 @@ void PBS::choose_conflict(PBSNode &node)
 
     return;*/
 
-	// choose the earliest
+	// choose the earliest 遍历所有冲突，选择时间最早的conflict，保存到node.conflict中
+    // PBS论文算法2的第14行
     for (auto conflict : node.conflicts)
     {
         /*int a1 = std::get<0>(*conflict);
@@ -318,6 +324,7 @@ bool PBS::find_path(PBSNode* node, int agent)
 
     clock_t t = std::clock();
 	rt.copy(initial_rt);
+    // 通过node建立保留表rt
     rt.build(paths, initial_constraints, node->priorities.get_reachable_nodes(agent),
              agent, starts[agent].location);
     runtime_get_higher_priority_agents += node->priorities.runtime;
@@ -325,6 +332,7 @@ bool PBS::find_path(PBSNode* node, int agent)
     runtime_rt += (double)(std::clock() - t) / CLOCKS_PER_SEC;
 
     t = std::clock();
+    // 在rt的前提下，规划agent的路径
     path = path_planner.run(G, starts[agent], goal_locations[agent], rt);
 	runtime_plan_paths += (double)(std::clock() - t) / CLOCKS_PER_SEC;
     path_cost = path_planner.path_cost;
@@ -344,6 +352,7 @@ bool PBS::find_path(PBSNode* node, int agent)
     if (paths[agent] != nullptr)
         old_cost = get_path_cost(*paths[agent]);
     node->g_val = node->g_val - old_cost + path_cost;
+    // 删除node中原有的路径
     for (auto it = node->paths.begin(); it != node->paths.end(); ++it)
     {
         if (std::get<0>(*it) == agent)
@@ -352,6 +361,7 @@ bool PBS::find_path(PBSNode* node, int agent)
             break;
         }
     }
+    // 添加新的路径
     node->paths.emplace_back(agent, path);
     paths[agent] = &node->paths.back().second;
     return true;
@@ -359,19 +369,26 @@ bool PBS::find_path(PBSNode* node, int agent)
 
 
 // return true if the agent keeps waiting at its start location until at least timestep
+// 判断冲突中，agent是否在起点上等待，如果是timestep时间，则返回true
+// 使用这个函数的前提是已经发现冲突，所以前提条件是agent已经在start_location上
+// 如果agent的路径中，时间戳已经超过了timestep，则说明agent已经
 bool PBS::wait_at_start(const Path& path, int start_location, int timestep)
 {
     for (auto& state : path)
     {
         if (state.timestep > timestep)
+            // 如果在start_location上等待的时间超过了timestep，则返回true
             return true;
         else if (state.location != start_location)
+            // 如果agent的路径中，位置已经发生了变化
             return false;
     }
     return false; // when the path is empty
 }
 
-
+// 根据冲突，判断agent是否需要重新规划路径，如果需要重新规划，则将agent加入replan中
+// 1. 是否设置了agent在起点优先（prioritize_start），如果设置了，则运动的agent需要重新规划
+// 2. 如果都不在起点，则优先级低的重新规划
 void PBS::find_replan_agents(PBSNode* node, const list<Conflict>& conflicts,
         unordered_set<int>& replan)
 {
@@ -382,24 +399,29 @@ void PBS::find_replan_agents(PBSNode* node, const list<Conflict>& conflicts,
         int a1, a2, v1, v2, t;
         std::tie(a1, a2, v1, v2, t) = conflict;
         if (replan.find(a1) != replan.end() || replan.find(a2) != replan.end())
+            // 如果agent已经存在于replan中，则不需要在添加
             continue;
         else if (prioritize_start && wait_at_start(*paths[a1], v1, t))
         {
+            // 如果设置了prioritize_start，并且a1已经在起点v1上等待，而且在t时刻也在v1上，则a2需要重新规划
             replan.insert(a2);
             continue;
         }
         else if (prioritize_start && wait_at_start(*paths[a2], v2, t))
         {
+            // 如果设置了prioritize_start，并且a2已经在起点v2上等待，而且在t时刻也在v2上，则a1需要重新规划
             replan.insert(a1);
             continue;
         }
         if (node->priorities.connected(a1, a2))
         {
+            // 如果a1的优先级低于a2，则a1需要重新规划路径
             replan.insert(a1);
             continue;
         }
         if (node->priorities.connected(a2, a1))
         {
+            // 如果a2的优先级低于a1，则a2需要重新规划路径
             replan.insert(a2);
             continue;
         }
@@ -412,9 +434,11 @@ bool PBS::find_consistent_paths(PBSNode* node, int agent)
 {
     clock_t t = clock();
     int count = 0; // count the times that we call the low-level search.
-    unordered_set<int> replan;
+    unordered_set<int> replan;//记录需要重新规划的agent
+    // 初始化所有agent都需要重新规划
     if (agent >= 0 && agent < num_of_agents)
         replan.insert(agent);
+    // 找到需要重新规划的agent，需要重规划的agent加入replan中
     find_replan_agents(node, node->conflicts, replan);
     /*clock_t t2 = clock();
     PathTable pt(paths, window, k_robust);
@@ -423,6 +447,7 @@ bool PBS::find_consistent_paths(PBSNode* node, int agent)
     {
         if (count > (int) node->paths.size() * 5)
         {
+            // 搜索次数过多，退出循环
             runtime_find_consistent_paths += (double)(std::clock() - t) / CLOCKS_PER_SEC;
             return false;
         }
@@ -432,19 +457,25 @@ bool PBS::find_consistent_paths(PBSNode* node, int agent)
         /*t2 = clock();
         pt.remove(paths[a], a);
         runtime_detect_conflicts += (double)(std::clock() - t2) / CLOCKS_PER_SEC;*/
+        // PBS论文算法2的第30~31行
         if (!find_path(node, a))
         {
             runtime_find_consistent_paths += (double)(std::clock() - t) / CLOCKS_PER_SEC;
             return false;
         }
+        // 重规划成功则删除node中 与a相关的冲突
         remove_conflicts(node->conflicts, a);
         list<Conflict> new_conflicts;
+        // 寻找重规划以后，与a相关的冲突
         find_conflicts(new_conflicts, a);
         /*t2 = clock();
         std::list< std::shared_ptr<Conflict> > new_conflicts = pt.add(paths[a], a);
         runtime_detect_conflicts += (double)(std::clock() - t2) / CLOCKS_PER_SEC;*/
+
+        // 重新规划以后，以及根据新冲突，找出需要重新规划的agent，保存到replan中
         find_replan_agents(node, new_conflicts, replan);
 
+        // 将new_conflicts加入node->conflicts中
         node->conflicts.splice(node->conflicts.end(), new_conflicts);
     }
     runtime_find_consistent_paths += (double)(std::clock() - t) / CLOCKS_PER_SEC;
@@ -467,7 +498,7 @@ bool PBS::validate_consistence(const list<Conflict>& conflicts, const PriorityGr
 }
 
 
-
+// 从父节点parent产生子节点node
 bool PBS::generate_child(PBSNode* node, PBSNode* parent)
 {
 	node->parent = parent;
@@ -507,11 +538,13 @@ bool PBS::generate_child(PBSNode* node, PBSNode* parent)
     else
     {
         clock_t t = clock();
-        node->priorities.copy(node->parent->priorities);
-        node->priorities.add(node->priority.first, node->priority.second);
+        node->priorities.copy(node->parent->priorities);//子节点继承父节点的优先级图
+        node->priorities.add(node->priority.first, node->priority.second);//添加新的优先级关系到优先级图
         runtime_copy_priorities += (double)(std::clock() - t) / CLOCKS_PER_SEC;
-        copy_conflicts(node->parent->conflicts, node->conflicts, -1); // copy all conflicts
+        copy_conflicts(node->parent->conflicts, node->conflicts, -1); // copy all conflicts赋值父节点的冲突到子节点
+        // 能否成功找到可行的路径
         if (!find_consistent_paths(node, node->priority.first))
+            // 无法找到可行路径，返回false
             return false;
     }
 
@@ -530,7 +563,7 @@ bool PBS::generate_child(PBSNode* node, PBSNode* parent)
 	return true;
 }
 
-
+// 产生根节点，对应PBS论文的算法2：1~6行
 bool PBS::generate_root_node()
 {
     clock_t time = std::clock();
@@ -568,13 +601,16 @@ bool PBS::generate_root_node()
         int start_location  = starts[i].location;
         clock_t t = std::clock();
 		rt.copy(initial_rt);
+        // 建立约束表格ct以及冲突避免表cat
+        // dummy_start->priorities.get_reachable_nodes(i)表示了在优先级图中，agent i可以到达的节点，也就是优先级比agent i高的
+        // 在产生根节点的时候，并没有优先级生成，因此这里的get_reachable_nodes(i)为空
         rt.build(paths, initial_constraints, dummy_start->priorities.get_reachable_nodes(i), i, start_location);
         runtime_get_higher_priority_agents += dummy_start->priorities.runtime;
         runtime_rt += (double)(std::clock() - t) / CLOCKS_PER_SEC;
         vector< vector<double> > h_values(goal_locations[i].size());
         t = std::clock();
-        path = path_planner.run(G, starts[i], goal_locations[i], rt);
-		runtime_plan_paths += (double)(std::clock() - t) / CLOCKS_PER_SEC;
+        path = path_planner.run(G, starts[i], goal_locations[i], rt);//单个agent进行规划，由于没有优先级高的agent，因此这里有自由规划
+		runtime_plan_paths += (double)(std::clock() - t) / CLOCKS_PER_SEC;//统计总共的规划时间
         path_cost = path_planner.path_cost;
         rt.clear();
         LL_num_expanded += path_planner.num_expanded;
@@ -591,8 +627,9 @@ bool PBS::generate_root_node()
         dummy_start->makespan = std::max(dummy_start->makespan, paths[i]->size() - 1);
         dummy_start->g_val += path_cost;
 	}
+    // 检测是否有冲突，冲突保存到dummy_start->conflicts中
     find_conflicts(dummy_start->conflicts);
-    if (!lazyPriority)
+    if (!lazyPriority) //默认不使用lazyPriority
     {
         if(!find_consistent_paths(dummy_start, -1))
             return false;
@@ -605,7 +642,7 @@ bool PBS::generate_root_node()
     best_node = dummy_start;
     HL_num_generated++;
     dummy_start->time_generated = HL_num_generated;
-    push_node(dummy_start);
+    push_node(dummy_start);//将根节点放入dfs中
     if (screen == 2)
     {
         double runtime = (double)(std::clock() - time) / CLOCKS_PER_SEC;
@@ -614,12 +651,14 @@ bool PBS::generate_root_node()
     return true;
 }
 
+// 将node加入到dfs中
 void PBS::push_node(PBSNode* node)
 {
     dfs.push_back(node);
     allNodes_table.push_back(node);
 }
 
+// 取出dfs中的最后一个节点
 PBSNode* PBS::pop_node()
 {
     PBSNode* node = dfs.back();
@@ -627,6 +666,8 @@ PBSNode* PBS::pop_node()
     return node;
 }
 
+// 如果best_node的最早冲突发生的时间早于当前节点node的最早冲突发生的时间
+// 或者时间相同，但是node的f_val更小，则更新best_node为node
 void PBS::update_best_node(PBSNode* node)
 {
     if (node->earliest_collision > best_node->earliest_collision or
@@ -635,6 +676,9 @@ void PBS::update_best_node(PBSNode* node)
         best_node = node;
 }
 
+// PBS算法的实现，最好也通过查看PBS算法论文理解
+// 《Searching with consistent prioritization for multi-agent path finding》
+// _time_limit求解的最大时间限制，单位为秒
 bool PBS::run(const vector<State>& starts,
                     const vector< vector<pair<int, int> > >& goal_locations,
                     int _time_limit)
@@ -661,17 +705,17 @@ bool PBS::run(const vector<State>& starts,
 	path_planner.hold_endpoints = hold_endpoints;
 	path_planner.prioritize_start = prioritize_start;
 
-    if (!generate_root_node())
+    if (!generate_root_node()) //产生根节点
         return false;
 
     if (dummy_start->num_of_collisions == 0) //no conflicts at the root node
-    {// found a solution (and finish the while look)
+    {// found a solution (and finish the while look) 如果没有冲突，则就是一个解，不需要进入下面的循环
         solution_found = true;
         solution_cost = dummy_start->g_val;
         best_node = dummy_start;
     }
 
-    // start the loop
+    // start the loop PBS论文中算法2的9到23行
 	while (!dfs.empty() && !solution_found)
 	{
 		runtime = (double)(std::clock() - start)  / CLOCKS_PER_SEC;
@@ -682,38 +726,45 @@ bool PBS::run(const vector<State>& starts,
 			break;
 		}
 
-		PBSNode* curr = pop_node();
+		PBSNode* curr = pop_node();//取出dfs中的最后一个节点
 		update_paths(curr);
 
         if (curr->conflicts.empty())
-        {// found a solution (and finish the while look)
+        {
+            // found a solution (and finish the while look)如果没有冲突，则就是一个解，结束循环
+            // PBS论文中算法2的12~13行
             solution_found = true;
             solution_cost = curr->g_val;
             best_node = curr;
             break;
         }
 	
+        // 选择时间最早的conflict，保存到node.conflict中 
 		choose_conflict(*curr);
 
+        // 判断curr是否好于best_node
         update_best_node(curr);
 
-		 //Expand the node
+		 //Expand the node 扩展节点计数加1
 		HL_num_expanded++;
 
 		curr->time_expanded = HL_num_expanded;
 		if(screen == 2)
 			std::cout << "Expand Node " << curr->time_generated << " ( cost = " << curr->f_val << " , #conflicts = " <<
 			curr->num_of_collisions << " ) on conflict " << curr->conflict << std::endl;
-		PBSNode* n[2];
+		
+        // PBS论文算法2第16行，生成两个子节点
+        PBSNode* n[2];
         for (auto & i : n)
                 i = new PBSNode();
+        // 将冲突分解成两个子节点（n1和n2)，n1中a1的优先级高于a2，n2中a2的优先级高于a1
 	    resolve_conflict(curr->conflict, n[0], n[1]);
 
         // int loc = std::get<2>(*curr->conflict);
         vector<Path*> copy(paths);
         for (auto & i : n)
         {
-            bool sol = generate_child(i, curr);
+            bool sol = generate_child(i, curr);//PBS论文算法2第19~20行，添加优先级约束并且规划路径
             if (sol)
             {
                 HL_num_generated++;
@@ -729,7 +780,7 @@ bool PBS::run(const vector<State>& starts,
                               << i->num_of_collisions << " conflicts " << std::endl;
                 }
                 if (i->f_val == min_f_val && i->num_of_collisions == 0) //no conflicts
-                {// found a solution (and finish the while look)
+                {// found a solution (and finish the while look) 如果能找到一个解，则结束while循环
                     solution_found = true;
                     solution_cost = i->g_val;
                     best_node = i;
@@ -749,10 +800,12 @@ bool PBS::run(const vector<State>& starts,
         {
             if (n[0] != nullptr && n[1] != nullptr)
             {
+                // PBS特有的排序
+                // 寻找与f_val更小的节点，或者f_val相同，但num_of_collisions更小的节点
                 if (n[0]->f_val < n[1]->f_val ||
                     (n[0]->f_val == n[1]->f_val && n[0]->num_of_collisions < n[1]->num_of_collisions))
                 {
-                    push_node(n[1]);
+                    push_node(n[1]);//由于后面搜索会弹出最后一个节点，因此这里需要先将优先级低的节点先压入dfs
                     push_node(n[0]);
                 }
                 else
@@ -780,13 +833,14 @@ bool PBS::run(const vector<State>& starts,
 
 	runtime = (double)(std::clock() - start) / CLOCKS_PER_SEC;
     get_solution();
-	if (solution_found && !validate_solution())
+	if (solution_found && !validate_solution())//PBS论文算法2第24行，无法获取有效解
 	{
         std::cout << "Solution invalid!!!" << std::endl;
         // print_paths();
         exit(-1);
 	}
-    min_sum_of_costs = 0;
+    min_sum_of_costs = 0;//所有agent从起点到终点的代价的综合
+    // 统计所有agent从起点到终点的代价的综合
     for (int i = 0; i < num_of_agents; i++)
     {
         int start_loc = starts[i].location;
@@ -801,13 +855,13 @@ bool PBS::run(const vector<State>& starts,
 	return solution_found;
 }
 
-
+// 将冲突分解成两个子节点（n1和n2)，n1中a1的优先级高于a2，n2中a2的优先级高于a1
 void PBS::resolve_conflict(const Conflict& conflict, PBSNode* n1, PBSNode* n2)
 {
     int a1, a2, v1, v2, t;
     std::tie(a1, a2, v1, v2, t) = conflict;
-    n1->priority = std::make_pair(a1, a2);
-    n2->priority = std::make_pair(a2, a1);
+    n1->priority = std::make_pair(a1, a2);//n1中a1的优先级高于a2
+    n2->priority = std::make_pair(a2, a1);//n2中a2的优先级高于a1
 }
 
 
@@ -924,6 +978,7 @@ void PBS::update_CAT(int ex_ag)
 	}
 }
 
+// 打印单个周期规划结果到终端
 void PBS::print_results() const
 {
     std::cout << "PBS:";

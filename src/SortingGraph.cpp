@@ -6,6 +6,7 @@
 #include <random>
 #include <chrono>
 
+// 读取地图，里面有坐标，以及每个节点的周围4邻域的权重都提前在文件里保存了，TODO: 需要自动计算的方式
 bool SortingGrid::load_map(std::string fname)
 {
     std::string line;
@@ -47,15 +48,18 @@ bool SortingGrid::load_map(std::string fname)
 		this->types[i] = std::string(beg->c_str()); // read type
 		beg++;
 		if (types[i] == "Induct")
+			// 如果为入库点，则记录它的id
 			this->inducts[beg->c_str()] = i; // read induct station id
 		else if (types[i] == "Eject")
 		{
+			// 如果为出库点
 			boost::unordered_map<std::string, std::list<int> >::iterator it = ejects.find(beg->c_str());
 			if (it == ejects.end())
 			{
+				// 如果在enjects中没有找到这个key，则创建一个新的list
 				this->ejects[beg->c_str()] = std::list<int>();
 			}
-			this->ejects[beg->c_str()].push_back(i); // read eject station id
+			this->ejects[beg->c_str()].push_back(i); // read eject station id 将出库点保存到ejects中
 		}
 		beg++;
 		beg++; // skip x
@@ -79,7 +83,9 @@ bool SortingGrid::load_map(std::string fname)
     return true;
 }
 
-
+// 预处理，提前计算启发值表
+// 如果存在文件，则提前读取，否则会重新计算启发值表
+// 因此第一次计算时候会慢，第二次就会很快
 void SortingGrid::preprocessing(bool consider_rotation)
 {
 	std::cout << "*** PreProcessing map ***" << std::endl;
@@ -94,6 +100,7 @@ void SortingGrid::preprocessing(bool consider_rotation)
 	bool succ = false;
 	if (myfile.is_open())
 	{
+		// 如果文件存在，则直接读取
 		succ = load_heuristics_table(myfile);
 		myfile.close();
 		// ensure that the heuristic table is correct
@@ -106,12 +113,14 @@ void SortingGrid::preprocessing(bool consider_rotation)
 			}
 		}
 	}
+	// 如果文件不存在，则重新计算
 	if (!succ)
 	{
 		for (auto induct : inducts)
 		{
 			heuristics[induct.second] = compute_heuristics(induct.second);
 		}
+		// 遍历ejects中每个元素中的每个出库点，计算出库点的heuristic
 		for (auto eject_station : ejects)
 		{
 			for (int eject : eject_station.second)

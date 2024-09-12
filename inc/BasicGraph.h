@@ -9,7 +9,7 @@ class BasicGraph
 {
 public:
     vector<std::string> types;
-    unordered_map<int, vector<double>> heuristics;
+    unordered_map<int, vector<double>> heuristics;//启发表的first是节点栅格的序号，second是所有节点到这个栅格的启发值
     virtual ~BasicGraph()= default;
     string map_name;
 	virtual bool load_map(string fname) = 0;
@@ -27,7 +27,7 @@ public:
 
     bool valid_move(int loc, int dir) const {return (weights[loc][dir] < WEIGHT_MAX - 1); }
     int get_Manhattan_distance(int loc1, int loc2) const;
-    int move[4];
+    int move[4];//四个方向的移动，[0]:右 [1]:上 [2]:左 [3]:下
     void copy(const BasicGraph& copy);
     int get_direction(int from, int to) const;
 
@@ -37,6 +37,6 @@ public:
 
     int rows;
     int cols;
-    vector<vector<double> > weights; // (directed) weighted 4-neighbor grid
+    vector<vector<double> > weights; // (directed) weighted 4-neighbor grid保存了节点到四邻域的权重
     bool consider_rotation;
 };

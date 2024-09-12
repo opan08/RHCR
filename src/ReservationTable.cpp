@@ -197,7 +197,7 @@ void ReservationTable::insertSoftConstraint2SIT(int location, int t_min, int t_m
     }
 }
 
-
+// 将path加入到CT（constrain table约束表中，使得规划的时候能够避开这些路径
 void ReservationTable::insertPath2CT(const Path& path)
 {
 	if (path.empty())
@@ -205,13 +205,16 @@ void ReservationTable::insertPath2CT(const Path& path)
 	auto prev = path.begin();
 	auto curr = path.begin();
 	++curr;
+	// 考虑了SIPP，所以这里的window是curr->timestep - k_robust
+	// 这里退出的条件要不是路径结束了，要不是路径点的时间超过了时间窗口（时间窗口为k_robust+window）
 	while (curr != path.end() && curr->timestep - k_robust <= window)
 	{
 		if (prev->location != curr->location)
 		{
-			if (G.types[prev->location] != "Magic")
+			if (G.types[prev->location] != "Magic")//TODO:弄清楚MAGIC的含义
+				// 添加顶点约束,k_robust是SIPP上使用的安全区间
 				ct[prev->location].emplace_back(prev->timestep - k_robust, curr->timestep + k_robust);
-			if (k_robust == 0) // add edge constraint
+			if (k_robust == 0) // add edge constraint 添加边约束
 			{
 				ct[getEdgeIndex(curr->location, prev->location)].emplace_back(curr->timestep, curr->timestep + 1);
 			}
@@ -221,6 +224,7 @@ void ReservationTable::insertPath2CT(const Path& path)
 	}
 	if (curr != path.end())
 	{
+		// 如果时间范围已经到达但是路径没有结束，则添加最后一个顶点约束
 		if (G.types[prev->location] != "Magic")
 			ct[prev->location].emplace_back(prev->timestep - k_robust, curr->timestep + k_robust);
 		if (k_robust == 0) // add edge constraint
@@ -230,6 +234,7 @@ void ReservationTable::insertPath2CT(const Path& path)
 	}
 	else
 	{
+		// 如果路径已经结束，则路径最后一个点占用的时间范围
 		if (G.types[prev->location] != "Magic")
 			ct[prev->location].emplace_back(prev->timestep - k_robust, path.back().timestep + 1 + k_robust);
 		if (k_robust == 0) // add edge constraint
@@ -238,16 +243,19 @@ void ReservationTable::insertPath2CT(const Path& path)
 		}
 	}
 	if (hold_endpoints && G.types[prev->location] != "Magic")
+		// 如果是设置了hold_endpoints，则会无限期地占用终点
 		ct[path.back().location].emplace_back(path.back().timestep, INTERVAL_MAX);
 }
 
+// 根据agent的当前位置添加约束
 void ReservationTable::addInitialConstraints(const list< tuple<int, int, int> >& initial_constraints, int current_agent)
 {
 	for (auto con : initial_constraints)
 	{
+		// 如果不是当前的agent 且 位置在栅格内 且 对应的位置不是MAGIC
 		if (std::get<0>(con) != current_agent && 0 <= std::get<1>(con) && std::get<1>(con) < G.types.size() &&
 			G.types[std::get<1>(con)] != "Magic")
-			ct[std::get<1>(con)].emplace_back(0, min(window, std::get<2>(con)));
+			ct[std::get<1>(con)].emplace_back(0, min(window, std::get<2>(con)));//从step和windows中取最小值，避免超过规划时间窗
 	}
 }
 
@@ -257,11 +265,11 @@ void ReservationTable::insertPath2CAT(const Path& path)
 {
 	if (path.empty())
 		return;
-	int max_timestep = min((int)path.size() - 1, k_robust + window);
+	int max_timestep = min((int)path.size() - 1, k_robust + window);//最长的时间步数，在路径长度和时间窗的限制下取最小值
 	int timestep = 0;
 	while (timestep <= max_timestep)
 	{
-		int location = path[timestep].location;
+		int location = path[timestep].location;//当前位置
 		if (G.types[location] != "Magic")
 		{
 			for (int t = max(0, timestep - k_robust); t <= min((int)cat.size() - 1, timestep + k_robust); t++)
@@ -281,14 +289,19 @@ void ReservationTable::insertPath2CAT(const Path& path)
 	}
 }
 
-// For PBS
+// For PBS 建立约束表格ct以及冲突避免表cat
+// paths 每个agent现在的路径
+// initial_constraints 初始约束，机器人当前的位置
+// high_priority_agents 优先级高的agent的集合
+// current_agent 当前agent的id
+// start_location 当前agent的初始位置
 void ReservationTable::build(const vector<Path*>& paths,
         const list< tuple<int, int, int> >& initial_constraints,
         const unordered_set<int>& high_priority_agents, int current_agent, int start_location)
 {
     clock_t t = std::clock();
 
-    // add hard constraints
+    // add hard constraints 将优先级高的agent的路径插入到约束表ct中
     vector<bool> soft(num_of_agents, true);
     for (auto i : high_priority_agents)
     {
@@ -298,18 +311,20 @@ void ReservationTable::build(const vector<Path*>& paths,
 		soft[i] = false;
     }
 
-    if (prioritize_start) // prioritize waits at start locations
+    if (prioritize_start) // prioritize waits at start locations 添加其他agent的起点的约束
     {
         insertConstraints4starts(paths, current_agent, start_location);
     }
 
+	// 根据agent的当前位置添加约束
 	addInitialConstraints(initial_constraints, current_agent); // add initial constraints
    
     runtime = (std::clock() - t) * 1.0  / CLOCKS_PER_SEC;
     if (!use_cat)
         return;
 
-    // add soft constraints
+    // add soft constraints 将每个agent的路径插入到约束表cat中
+	// 冲突避免表cat里面表示了每个时刻，每个位置的占用情况，设置为true表示该位置被占用，false表示空闲。
     soft[current_agent] = false;
     for (int i = 0; i < num_of_agents; i++)
     {
@@ -394,7 +409,8 @@ void ReservationTable::build(const vector<Path*>& paths,
     runtime = (std::clock() - t) * 1.0  / CLOCKS_PER_SEC;
 }
 
-
+// 添加其他agent的起点的约束
+// 根据其他agent的起点，添加约束到ct
 void ReservationTable::insertConstraints4starts(const vector<Path*>& paths, int current_agent, int start_location)
 {
     for (int i = 0; i < num_of_agents; i++)
@@ -403,16 +419,18 @@ void ReservationTable::insertConstraints4starts(const vector<Path*>& paths, int 
             continue;
         else if (i != current_agent)// prohibit the agent from conflicting with other agents at their start locations
         {
+			// 如果是其他agent，则添加约束
             int start = paths[i]->front().location;
             if (start < 0 || G.types[start] == "Magic")
                 continue;
             for (auto state : (*paths[i]))
             {
-                if (state.location != start) // The agent starts to move
+                if (state.location != start) // The agent starts to move 找到路径上第一个不是起点的点，则添加起点的约束，为了获取离开起点的时间
                 {
                     // The agent waits at its start locations between [appear_time, state.timestep - 1]
                     // So other agents cannot use this start location between
                     // [appear_time - k_robust, state.timestep + k_robust - 1]
+					// agent i会在起点等待，等待时间段为[appear_time, state.timestep - 1]，其他agent不能在这个时间段使用这个位置
                     ct[start].emplace_back(0, state.timestep + k_robust);
                     break;
                 }

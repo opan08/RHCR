@@ -2,15 +2,16 @@
 #include "States.h"
 #include "BasicGraph.h"
 
+// 保留表
 class ReservationTable
 {
 public:
-    size_t map_size;
-    int num_of_agents;
-    int k_robust;
-    int window;
+    size_t map_size;//栅格的数量
+    int num_of_agents;//机器人的数量
+    int k_robust;//k_robust是SIPP上使用的安全区间
+    int window;//这是RHCR算法的规划时间窗口h
     bool use_cat; // use conflict avoidance table
-	bool hold_endpoints = false;
+	bool hold_endpoints = false;//到达目标点后是否保持，true为保持，false为到达目标点后消失
 
     bool prioritize_start;
     double runtime;
@@ -46,9 +47,10 @@ public:
 	ReservationTable(const BasicGraph& G): G(G) {}
 private:
 	const BasicGraph& G;
-	// Constraint Table (CT)
-	unordered_map<size_t, list<pair<int, int> > > ct; // location/edge -> time range
-	// Conflict Avoidance Table (CAT)
+	// Constraint Table (CT)约束表，硬约束
+    // location/edge -> time range first为点或者边，second为时间范围标识了不能使用的时间段
+	unordered_map<size_t, list<pair<int, int> > > ct; 
+	// Conflict Avoidance Table (CAT) 软约束
 	vector<vector<bool> > cat; //  (timestep, location) ->  have conflicts or not
 	// Safe Interval Table (SIT)
 	unordered_map<size_t, list<Interval > > sit; // location/edge -> [t_min, t_max), num_of_collisions

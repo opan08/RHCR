@@ -23,13 +23,13 @@ public:
 	// initial data
 	ReservationTable initial_rt;
 	vector<Path> initial_paths;
-    list< tuple<int, int, int> > initial_constraints; // <agent, location, timestep>:
+    list< tuple<int, int, int> > initial_constraints; // 初始约束表示了当前各个agent的位置 <agent, location, timestep>，如果设置了k_robust，则是list，不然每个agent只会有一个约束
     // only this agent can stay in this location before this timestep.
 	list<const Path*> initial_soft_path_constraints; // the paths that all agents try to avoid
 	unordered_map<int, double> travel_times;
 
 
-	SingleAgentSolver& path_planner;
+	SingleAgentSolver& path_planner;//对应的是single_agent_solver参数设置的单agent路径规划器
 	// Runs the algorithm until the problem is solved or time is exhausted 
     virtual bool run(const vector<State>& starts,
             const vector< vector<pair<int, int> > >& goal_locations,  // an ordered list of pairs of <location, release time>
@@ -51,7 +51,7 @@ public:
     vector<State> starts;
     vector< vector<pair<int, int> > > goal_locations;
     int num_of_agents;
-	int time_limit;
+	int time_limit;//求解的最大时间限制，单位为秒
 
     // validate
     bool validate_solution();

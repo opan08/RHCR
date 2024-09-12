@@ -9,8 +9,8 @@ class PBS:
 	public MAPFSolver
 {
 public:
-    bool lazyPriority;
-    bool prioritize_start = true;
+    bool lazyPriority;//默认是false
+    bool prioritize_start = true;//设置是否在起点等待的优先级高于正在移动的agent的优先级,true表示运动的agent需要让在起点的agent
 
 	 // runtime breakdown
     double runtime_rt = 0;
@@ -27,10 +27,10 @@ public:
 	PBSNode* dummy_start = nullptr;
 	PBSNode* best_node;
 
-	uint64_t HL_num_expanded = 0;
-	uint64_t HL_num_generated = 0;
-	uint64_t LL_num_expanded = 0;
-	uint64_t LL_num_generated = 0;
+	uint64_t HL_num_expanded = 0;//记录高层搜索扩展的节点数目
+	uint64_t HL_num_generated = 0;//记录高层搜索产生的节点数目
+	uint64_t LL_num_expanded = 0;//记录低层搜索扩展的节点数目
+	uint64_t LL_num_generated = 0;//记录低层搜索产生的节点数目
 
 
 	double min_f_val = 0;
@@ -65,7 +65,7 @@ private:
 
     std::vector< Path* > paths;
     list<PBSNode*> allNodes_table;
-    list<PBSNode*> dfs;
+    list<PBSNode*> dfs;//待搜索的节点队列
 
    //  vector<State> starts;
     // vector< vector<int> > goal_locations;
@@ -83,6 +83,8 @@ private:
     PBSNode* pop_node();
 
     // high level search
+    // 规划agent的路径，node负责提供约束
+    // 规划结果保存到node->paths中
 	bool find_path(PBSNode*  node, int ag);
     bool find_consistent_paths(PBSNode* node, int a); // find paths consistent with priorities
     static void resolve_conflict(const Conflict& conflict, PBSNode* n1, PBSNode* n2);
@@ -109,6 +111,9 @@ private:
     void update_CAT(int ex_ag); // update conflict avoidance table
 	void update_focal_list();
 	inline void release_closed_list();
+
+    // 如果best_node的最早冲突发生的时间早于当前节点node的最早冲突发生的时间
+    // 或者时间相同，但是node的f_val更小，则更新best_node为node
     void update_best_node(PBSNode* node);
 
 	// print and save

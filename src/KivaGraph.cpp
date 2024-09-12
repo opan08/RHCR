@@ -11,9 +11,9 @@ bool KivaGrid::load_map(std::string fname)
     std::size_t pos = fname.rfind('.');      // position of the file extension
     auto ext_name = fname.substr(pos, fname.size());     // get the name without extension
     if (ext_name == ".grid")
-        return load_weighted_map(fname);
+        return load_weighted_map(fname);//.grid是有权重图
     else if (ext_name == ".map")
-        return load_unweighted_map(fname);
+        return load_unweighted_map(fname);//.map是无权重图
     else
     {
         std::cout << "Map file name should end with either .grid or .map. " << std::endl;
@@ -88,7 +88,7 @@ bool KivaGrid::load_weighted_map(std::string fname)
 }
 
 
-// load map
+// load map 读取地图，并且计算每个节点周围是否存在可行的节点，如果存在，则对应位置的权重为1，否则为最大权重
 bool KivaGrid::load_unweighted_map(std::string fname)
 {
     std::string line;
@@ -112,10 +112,10 @@ bool KivaGrid::load_unweighted_map(std::string fname)
 	rows = atoi((*beg).c_str()); // read number of rows
 	beg++;
 	cols = atoi((*beg).c_str()); // read number of cols
-	move[0] = 1;
-	move[1] = -cols;
-	move[2] = -1;
-	move[3] = cols;
+	move[0] = 1;//右
+	move[1] = -cols;//上
+	move[2] = -1;//左
+	move[3] = cols;//下
 
 	std::stringstream ss;
 	getline(myfile, line);
@@ -149,30 +149,31 @@ bool KivaGrid::load_unweighted_map(std::string fname)
 		{
 			int id = cols * i + j;
 			weights[id].resize(5, WEIGHT_MAX);
-			if (line[j] == '@') // obstacle
+			if (line[j] == '@') // obstacle 可以暂时认为是货架以及其他障碍物
 			{
 				types[id] = "Obstacle";
 			}
-			else if (line[j] == 'e') //endpoint
+			else if (line[j] == 'e') //endpoint 工作（取货或者放货）的点
 			{
 				types[id] = "Endpoint";
-				weights[id][4] = 1;
+				weights[id][4] = 1;//设置原地等待的权重为1
 				endpoints.push_back(id);
 			}
-			else if (line[j] == 'r') //robot rest
+			else if (line[j] == 'r') //robot rest 机器人待命点
 			{
 				types[id] = "Home";
-				weights[id][4] = 1;
+				weights[id][4] = 1;//设置原地等待的权重为1
 				agent_home_locations.push_back(id);
 			}
-			else
+			else //其他是可行区域
 			{
 				types[id] = "Travel";
-				weights[id][4] = 1;
+				weights[id][4] = 1;//设置原地等待的权重为1
 			}
 		}
 	}
 	shuffle(agent_home_locations.begin(), agent_home_locations.end(), std::default_random_engine());
+	// 遍历每个节点，计算其周围是否存在可行的节点，如果存在，则对应位置的权重为1，否则为0
 	for (int i = 0; i < cols * rows; i++)
 	{
 		if (types[i] == "Obstacle")

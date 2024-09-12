@@ -3,10 +3,11 @@
 
 struct State
 {
-    int location;
+    int location;//在栅格地图中的序号
     int timestep;
     int orientation;
 
+    // 等待表示状态不变，timestep+1
     State wait() const {return State(location, timestep + 1, orientation); }
 
     struct Hasher
@@ -27,6 +28,7 @@ struct State
         orientation = other.orientation;
     }
 
+    // 判断2个状态是否相同，需要timestep、location和orientation都相同
     bool operator == (const State& other) const
     {
         return timestep == other.timestep && location == other.location && orientation == other.orientation;

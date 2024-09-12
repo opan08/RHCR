@@ -18,19 +18,21 @@ make
 
 Then, you are able to run the code:
 ```
-./lifelong -m maps/sorting_map.grid -k 800 --scenario=SORTING --simulation_window=5 --planning_window=10 --solver=PBS --seed=0
+./lifelong -m ../maps/sorting_map.grid -k 800 --scenario=SORTING --simulation_window=5 --planning_window=10 --solver=PBS --seed=0
 ```
-for running RHCR with PBS on the sorting center map; and
+for running **RHCR** with PBS on the sorting center map; and
+
+
 ```
 ./lifelong -m maps/kiva.map -k 100 --scenario=KIVA --simulation_window=1 --solver=ECBS --suboptimal_bound=1.5 --dummy_path=1 --seed=0
 ```
 for running ECBS(w=1.5) with dummy paths on the kiva map.
 
 - m: the map file 
-- k: the number of agents
+- k: the number of agents agent的数目
 - scenario: the simulation scenario (each scenario corresponding to a different task assigner). Use KIVA for the fulfillment warehouse scenario and SORTING for the sorting center scenario. 
-- simulation_window: the replanning period h
-- planning_window: the planning window w
+- simulation_window: the replanning period h 重规划的周期
+- planning_window: the planning window w 规划的窗口长度
 - solver: the windowed MAPF solver (WHCA, ECBS, and PBS)
 - seed: the random seed
 

@@ -15,22 +15,22 @@ public:
 	MAPFSolver& solver;
 	bool hold_endpoints;
 	bool useDummyPaths;
-    int time_limit;
+    int time_limit;//单次求解的最大时间限制，对应cutoffTime参数的设置，默认60s
     int travel_time_window;
 	//string potential_function;
 	//double potential_threshold;
 	//double suboptimal_bound;
     int screen;
 	bool log;
-    int num_of_drives;
+    int num_of_drives;//agent的数目
     int seed;
-    int simulation_window;
-    int planning_window;
+    int simulation_window;//触发重新规划的窗口大小，论文中的h
+    int planning_window;//规划的窗口大小，论文中的w
     int simulation_time;
 
     // params for drive model
     bool consider_rotation;
-    int k_robust;
+    int k_robust;//SIPP考虑的安全时间阈值
 
     BasicSystem(const BasicGraph& G, MAPFSolver& solver);
     ~BasicSystem();
@@ -53,11 +53,11 @@ public:
 
     // used for MAPF instance
     vector<State> starts;
-    vector< vector<pair<int, int> > > goal_locations;
+    vector< vector<pair<int, int> > > goal_locations;//保存了每个agent的目标点,first是location,second是timestep
 	// unordered_set<int> held_endpoints;
-    int timestep;
+    int timestep;//当前仿真的timestep
 
-    // record movements of drives
+    // record movements of drives 保存了每个agent的MAPF规划路径
     std::vector<Path> paths;
     std::vector<std::list<std::pair<int, int> > > finished_tasks; // location + finish time
 

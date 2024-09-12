@@ -46,24 +46,24 @@ public:
 	// conflicts in the current paths
 	std::list<Conflict> conflicts;
 	
-	// The chosen conflict
+	// The chosen conflict被选中的冲突，PBS中是最早发生的冲突
 	Conflict conflict;
 
 	PBSNode* parent;
 
 
-    list< pair<int, Path> > paths; // <agent_id, path>
+    list< pair<int, Path> > paths; // 保存了每个agent的路径，<agent_id, path>
     std::pair<int, int> priority; // a1 < a2
 
-    PriorityGraph priorities;
+    PriorityGraph priorities;//优先级图，表示了每个agent的优先级关系，有向图？？
 
 	double g_val;
 	double h_val;
 	double f_val;
 	size_t depth; // depath of this CT node
-	size_t makespan; // makespan over all paths
-	int num_of_collisions; // number of conflicts in the current paths
-    int earliest_collision;
+	size_t makespan; // makespan over all paths 节点中，最长路径所用的时间
+	int num_of_collisions; // number of conflicts in the current paths 这个节点中冲突的数目
+    int earliest_collision;// 最早发生的冲突的时间
 
 	uint64_t time_expanded;
 	uint64_t time_generated;

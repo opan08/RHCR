@@ -28,10 +28,10 @@ bool OnlineGrid::load_map(std::string fname)
 	this->rows = atoi((*beg).c_str()); // read number of cols
 	beg++;
 	this->cols = atoi((*beg).c_str()); // read number of rows
-	move[0] = 1;
-	move[1] = -cols;
-	move[2] = -1;
-	move[3] = cols;
+	move[0] = 1;// right
+	move[1] = -cols;//up
+	move[2] = -1;//left
+	move[3] = cols;//down
 
 	getline(myfile, line); // skip the headers
 

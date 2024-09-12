@@ -27,6 +27,7 @@ void PriorityGraph::copy(const PriorityGraph& other, const vector<bool>& exclude
     }
 }
 
+// 添加关系，从from指向to， from的优先级低于to
 void PriorityGraph::add(int from, int to) // from is lower than to
 {
     G[from].insert(to);
@@ -68,12 +69,12 @@ bool PriorityGraph::connected(int from, int to) const
     return false;
 }
 
-
+// 获取root能够到达的所有节点，也就是说获取优先级比root高的所有节点
 boost::unordered_set<int> PriorityGraph::get_reachable_nodes(int root)
 {
     clock_t t = std::clock();
     std::list<int> open_list;
-    boost::unordered_set<int> closed_list;
+    boost::unordered_set<int> closed_list;//记录了所有已经访问过的节点
 
     open_list.push_back(root);
     while (!open_list.empty())
@@ -83,6 +84,7 @@ boost::unordered_set<int> PriorityGraph::get_reachable_nodes(int root)
         auto neighbors = G.find(curr);
         if (neighbors == G.end())
             continue;
+        // 遍历当前节点的所有子节点
         for (auto next : neighbors->second)
         {
             if (closed_list.find(next) == closed_list.end())

@@ -79,9 +79,10 @@ list<State> BasicGraph::get_neighbors(const State& s) const
     return neighbors;
 }    
 
+// 获取状态s的可行的邻近节点
 std::list<State> BasicGraph::get_reverse_neighbors(const State& s) const
 {
-    std::list<State> rneighbors;
+    std::list<State> rneighbors;//可行的邻近节点
     // no wait actions
     if (s.orientation >= 0)
     {
@@ -99,6 +100,7 @@ std::list<State> BasicGraph::get_reverse_neighbors(const State& s) const
     }
     else
     {
+        // 遍历所有方向，查看weitghts是否有值，如果有值，则添加对应的邻近节点
         for (int i = 0; i < 4; i++) // move
             if (s.location - move[i] >= 0 && s.location - move[i] < this->size() &&
                     weights[s.location - move[i]][i] < WEIGHT_MAX - 1)
@@ -107,12 +109,13 @@ std::list<State> BasicGraph::get_reverse_neighbors(const State& s) const
     return rneighbors;
 }
 
-
+// 获取从from到to的权重
 double BasicGraph::get_weight(int from, int to) const
 {
-    if (from == to) // wait or rotate
+    if (from == to)
+        // 如果from和to相同，则返回等待权重
         return weights[from][4];
-    int dir = get_direction(from, to);
+    int dir = get_direction(from, to);// 获取方向
     if (dir >= 0)
         return weights[from][dir];
     else
@@ -133,7 +136,7 @@ int BasicGraph::get_direction(int from, int to) const
 }
 
 
-
+// 直接读取启发值表
 bool BasicGraph::load_heuristics_table(std::ifstream& myfile)
 {
     boost::char_separator<char> sep(",");
@@ -188,6 +191,7 @@ void BasicGraph::save_heuristics_table(std::string fname)
 	myfile.close();
 }
 
+// 计算启发值
 std::vector<double> BasicGraph::compute_heuristics(int root_location)
 {
     std::vector<double> res(this->size(), DBL_MAX);
@@ -212,13 +216,14 @@ std::vector<double> BasicGraph::compute_heuristics(int root_location)
         nodes.insert(root);       // add root to hash_table (nodes)
     }
 
+    // heap为空才退出循环，也就是所有节点都已经计算完毕
 	while (!heap.empty()) 
     {
         StateTimeAStarNode* curr = heap.top();
 		heap.pop();
 		for (auto next_state : get_reverse_neighbors(curr->state))
 		{
-			double next_g_val = curr->g_val + get_weight(next_state.location, curr->state.location);
+			double next_g_val = curr->g_val + get_weight(next_state.location, curr->state.location);//下一步的代价=当前代价+当前位置到下一步位置的权重
             StateTimeAStarNode* next = new StateTimeAStarNode(next_state, next_g_val, 0, nullptr, 0);
 			auto it = nodes.find(next);
 			if (it == nodes.end()) 
@@ -227,11 +232,12 @@ std::vector<double> BasicGraph::compute_heuristics(int root_location)
 				nodes.insert(next);
 			}
 			else 
-			{  // update existing node's g_val if needed (only in the heap)
+			{  // update existing node's g_val if needed (only in the heap)如果已经存在这个node，则更新它的g_val
 				delete(next);  // not needed anymore -- we already generated it before
                 StateTimeAStarNode* existing_next = *it;
 				if (existing_next->g_val > next_g_val) 
 				{
+                    // 如果g_val更小，则更新当前节点的g_val
 					existing_next->g_val = next_g_val;
 					heap.increase(existing_next->open_handle);
 				}

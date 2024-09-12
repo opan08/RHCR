@@ -205,6 +205,8 @@ void BasicSystem::update_paths(const std::vector<Path*>& MAPF_paths, int max_tim
     }
 }
 
+// 将MAPF规划的结果更新到paths中，默认是MAPF_paths的所有长度
+// 从MAPF_paths更新paths，获取从timestep到timestep+max_timestep长度的路径
 void BasicSystem::update_paths(const std::vector<Path>& MAPF_paths, int max_timestep = INT_MAX)
 {
     for (int k = 0; k < num_of_drives; k++)
@@ -250,6 +252,8 @@ void BasicSystem::update_initial_paths(vector<Path>& initial_paths) const
     }
 }
 
+// 获取每个agent在(timestep - k_robust)到timestep的为位置作为约束、默认k_robust=0
+// <agent_id, location, timestep>
 void BasicSystem::update_initial_constraints(list< tuple<int, int, int> >& initial_constraints) const
 {
     initial_constraints.clear();
@@ -263,6 +267,7 @@ void BasicSystem::update_initial_constraints(list< tuple<int, int, int> >& initi
                 continue;
             else if (curr_location != prev_location)
             {
+                // 只有位置发生改变才添加约束
                 initial_constraints.emplace_back(k, curr_location, t + k_robust + 1 - timestep);
                 prev_location = curr_location;
             }
@@ -324,8 +329,9 @@ bool BasicSystem::congested() const
     return wait_agents > num_of_drives / 2;  // more than half of drives didn't make progress
 }
 
-// move all agents from start_timestep to end_timestep
-// return a list of finished tasks
+// move all agents from start_timestep to end_timestep 将机器从start_timestep移动到end_timestep
+// 并且判断任务的完成情况 和 移动是否合法
+// return a list of finished tasks 返回已完成的任务列表
 list<tuple<int, int, int>> BasicSystem::move()
 {
     int start_timestep = timestep;
@@ -339,6 +345,7 @@ list<tuple<int, int, int>> BasicSystem::move()
             // Agents waits at its current locations if no future paths are assigned
             while ((int) paths[k].size() <= t)
             { // This should not happen?
+                // path[k]的长度小于(end_timestep)，则默认agent待在最后的位置
                 State final_state = paths[k].back();
                 paths[k].emplace_back(final_state.location, final_state.timestep + 1, final_state.orientation);
             }
@@ -399,6 +406,7 @@ list<tuple<int, int, int>> BasicSystem::move()
                 }
 				else
 				{
+                    // 判断当前位置是否之前位置的四邻域
 					int dir = G.get_direction(prev.location, curr.location);
 					if (dir < 0 || !G.valid_move(prev.location, dir))
 					{
@@ -410,6 +418,7 @@ list<tuple<int, int, int>> BasicSystem::move()
             }
 
             // Check whether this move has conflicts with other agents
+            // 判断这个位置是否与其他agent发生冲突
 			if (G.types[curr.location] != "Magic")
 			{
 				for (int j = k + 1; j < num_of_drives; j++)
@@ -563,7 +572,7 @@ void BasicSystem::update_travel_times(unordered_map<int, double>& travel_times)
     }
 }
 
-
+//通过带窗口的mapf算法求解（如LRA, PBS, WHCA, ECBS）
 void BasicSystem::solve()
 {
     LRA_called = false;
@@ -597,11 +606,11 @@ void BasicSystem::solve()
 	}
 	 else // PBS or ECBS
 	 {
-		 //PriorityGraph initial_priorities;
+		 //PriorityGraph initial_priorities; 获取初始的限制，也就是将agent当前的位置作为约束
 		 update_initial_constraints(solver.initial_constraints);
 
 		 // solve
-		 if (hold_endpoints || useDummyPaths)
+		 if (hold_endpoints || useDummyPaths)//hold_endpoints和useDummyPaths默认都是false
 		 {
 			 vector<State> new_starts;
 			 vector< vector<pair<int, int> > > new_goal_locations;
@@ -660,12 +669,13 @@ void BasicSystem::solve()
 		 }
 		 else
 		 {
-			 bool sol = solver.run(starts, goal_locations, time_limit);
+			 bool sol = solver.run(starts, goal_locations, time_limit);//调用对应设置的算法的run函数，如PBS::run
 			 if (sol)
 			 {
+                 // 如果能成功求解路径，则使用求解的路径，否则使用LRA求解路径
 				 if (log)
 					 solver.save_constraints_in_goal_node(outfile + "/goal_nodes/" + std::to_string(timestep) + ".gv");
-				 update_paths(solver.solution);
+				 update_paths(solver.solution);// 将MAPF规划的结果更新到paths中
 			 }
 			 else
 			 {

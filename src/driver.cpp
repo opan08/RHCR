@@ -128,7 +128,7 @@ int main(int argc, char** argv)
 		        "Hold endpoints from Ma et al, AAMAS 2017")
 		("dummy_paths", po::value<bool>()->default_value(false),
 				"Find dummy paths from Liu et al, AAMAS 2019")
-		("prioritize_start", po::value<bool>()->default_value(true), "Prioritize waiting at start locations")
+		("prioritize_start", po::value<bool>()->default_value(true), "Prioritize waiting at start locations")//是否在起点时候的优先级比在导航的agent高
 		("suboptimal_bound", po::value<double>()->default_value(1), "Suboptimal bound for ECBS")
 		("log", po::value<bool>()->default_value(false), "save the search trees (and the priority trees)")
 		;
@@ -189,8 +189,9 @@ int main(int argc, char** argv)
 	}
 	else if (vm["scenario"].as<string>() == "SORTING")
 	{
+		// 开源例子用的是这个
 		 SortingGrid G;
-		 if (!G.load_map(vm["map"].as<std::string>()))
+		 if (!G.load_map(vm["map"].as<std::string>())) //地图的地图以及每个节点对应的四邻域的权重
 			 return -1;
 		 MAPFSolver* solver = set_solver(G, vm);
 		 SortingSystem system(G, *solver);
@@ -201,7 +202,7 @@ int main(int argc, char** argv)
 		 system.simulate(vm["simulation_time"].as<int>());
 		 return 0;
 	}
-	else if (vm["scenario"].as<string>() == "ONLINE")
+	else if (vm["scenario"].as<string>() == "ONLINE")  //online
 	{
 		OnlineGrid G;
 		if (!G.load_map(vm["map"].as<std::string>()))
